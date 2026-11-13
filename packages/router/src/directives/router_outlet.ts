@@ -42,6 +42,11 @@ import type {RouterResourcesFeatureImplementation} from '../router_resource_feat
 import {ActivatedRoute} from '../router_state';
 import {PRIMARY_OUTLET} from '../shared';
 
+@Injectable({providedIn: 'root'})
+class MissingErrorBoundariesWarning {
+  warned = false;
+}
+
 /**
  * An `InjectionToken` provided by the `RouterOutlet` and can be set using the `routerOutletData`
  * input.
@@ -266,6 +271,8 @@ export class RouterOutlet implements OnDestroy, OnInit, RouterOutletContract {
   private changeDetector = inject(ChangeDetectorRef);
   private inputBinder = inject(INPUT_BINDER, {optional: true});
   private errorBoundaryHandler = inject(ROUTER_ERROR_BOUNDARY_HANDLER, {optional: true});
+  private missingErrorBoundariesWarning =
+    typeof ngDevMode === 'undefined' || ngDevMode ? inject(MissingErrorBoundariesWarning) : null;
   /** @docs-private */
   readonly supportsBindingToComponentInputs = true;
 
@@ -414,6 +421,19 @@ export class RouterOutlet implements OnDestroy, OnInit, RouterOutletContract {
     // The error handling implementation only exists when the application opts in to the error
     // boundary feature via `withErrorBoundaries`. Without it, errors propagate as usual.
     const errorBoundaryHandler = this.errorBoundaryHandler;
+    if (
+      this.missingErrorBoundariesWarning &&
+      !this.missingErrorBoundariesWarning.warned &&
+      !errorBoundaryHandler &&
+      snapshot.routeConfig?.errorComponent
+    ) {
+      console.warn(
+        `The route '${snapshot.routeConfig.path ?? ''}' defines an 'errorComponent', but router ` +
+          `error boundaries are not enabled. Add 'withErrorBoundaries()' to 'provideRouter' ` +
+          `for it to take effect.`,
+      );
+      this.missingErrorBoundariesWarning.warned = true;
+    }
     const onErrorHandler = errorBoundaryHandler
       ? (error: Error, details?: ErrorDetails) => {
           errorBoundaryHandler.handleError(
